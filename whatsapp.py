@@ -45,6 +45,7 @@ def messages(payload, phone_id, sender):
 def receive(handler):
     token, secret, phone_id, sender = settings()
     if not all((token, secret, phone_id, sender)):
+        print('WhatsApp webhook: configuración incompleta', flush=True)
         handler.send(503, {'error': 'Webhook sin configurar'})
         return
     try:
@@ -52,16 +53,19 @@ def receive(handler):
     except ValueError:
         size = 0
     if not 0 < size <= 1_000_000:
+        print('WhatsApp webhook: tamaño inválido', flush=True)
         handler.send(400, {'error': 'Tamaño inválido'})
         return
     body = handler.rfile.read(size)
     expected = 'sha256=' + digest(secret.encode(), body, sha256).hex()
     if not compare_digest(handler.headers.get('X-Hub-Signature-256', '').encode(), expected.encode()):
+        print('WhatsApp webhook: firma inválida', flush=True)
         handler.send(403, {'error': 'Firma inválida'})
         return
     try:
         records = list(messages(json.loads(body), phone_id, sender))
     except (ValueError, TypeError, AttributeError):
+        print('WhatsApp webhook: evento inválido', flush=True)
         handler.send(400, {'error': 'Evento inválido'})
         return
     if records:
@@ -70,6 +74,10 @@ def receive(handler):
                 'INSERT INTO whatsapp_entrantes(id, remitente, fecha, texto) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
                 records,
             )
+            inserted = db.total_changes
+        print(f'WhatsApp webhook: {inserted} guardados, {len(records) - inserted} duplicados', flush=True)
+    else:
+        print('WhatsApp webhook: evento válido sin textos del número y remitente configurados', flush=True)
     handler.send(200, {'ok': True})
 
 def inbox(handler):
