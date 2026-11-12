@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 const modules = [
   ['bandeja','Conversaciones','Organiza tus fichas de conversación con pestañas personalizadas.'],
+  ['whatsapp','WhatsApp de prueba','Revisa los mensajes de texto recibidos desde el celular autorizado.'],
   ['contactos','Contactos','Registra y consulta los contactos del CRM.'],
   ['etapas','Embudo Kanban','Crea las etapas que utilice tu equipo y asigna contactos.'],
   ['notas','Notas internas','Registra el seguimiento dentro del CRM.'],
@@ -227,6 +228,31 @@ function render() {
   heading.append(title,actions);
   view.replaceChildren(heading);
   if(page==='bandeja') return inbox(view);
+  if(page==='whatsapp') {
+    const box=panel('Mensajes entrantes');
+    const messages=el('div');
+    async function loadMessages() {
+      messages.replaceChildren(empty('Cargando mensajes…'));
+      try {
+        const result=await fetchJson('/api/whatsapp');
+        messages.replaceChildren();
+        if(!result.configurado) messages.append(empty('Completa la configuración del webhook en Render.'));
+        else if(!result.mensajes.length) messages.append(empty('Todavía no hay mensajes de prueba.'));
+        for(const item of result.mensajes) {
+          const time=new Date(Number(item.fecha)*1000);
+          const row=el('article','','row');
+          const text=el('div');
+          text.append(el('strong','+'+item.remitente),el('div',item.texto,'muted'));
+          row.append(text,el('span',Number.isNaN(time.valueOf())?'':time.toLocaleString('es-PE',{timeZone:'America/Lima'}),'muted'));
+          messages.append(row);
+        }
+      } catch(error) { messages.replaceChildren(empty('No se pudo consultar la bandeja de WhatsApp.')); }
+    }
+    box.append(button('Actualizar',loadMessages),messages);
+    view.append(box);
+    loadMessages();
+    return;
+  }
   if(page==='etapas') return board(view);
   if(page==='ayuda') {
     const guide=panel('Operación local');

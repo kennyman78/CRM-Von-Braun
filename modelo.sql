@@ -10,4 +10,5 @@ CREATE TABLE IF NOT EXISTS campanas(id TEXT PRIMARY KEY, nombre TEXT NOT NULL, t
 CREATE TABLE IF NOT EXISTS destinatarios(id TEXT PRIMARY KEY, campana TEXT NOT NULL REFERENCES campanas(id) ON DELETE CASCADE, contacto TEXT NOT NULL REFERENCES contactos(id) ON DELETE CASCADE, UNIQUE(campana,contacto));
 CREATE TABLE IF NOT EXISTS flujos(id TEXT PRIMARY KEY, nombre TEXT NOT NULL, clave TEXT NOT NULL, coincidencia TEXT NOT NULL CHECK(coincidencia IN ('Exacta','Contiene')), texto TEXT NOT NULL, opciones TEXT);
 CREATE TABLE IF NOT EXISTS ia(id TEXT PRIMARY KEY, nombre TEXT NOT NULL, modelo TEXT, contexto TEXT, instrucciones TEXT);
+CREATE TABLE IF NOT EXISTS whatsapp_entrantes(id TEXT PRIMARY KEY, remitente TEXT NOT NULL, fecha TEXT NOT NULL, texto TEXT NOT NULL);
 

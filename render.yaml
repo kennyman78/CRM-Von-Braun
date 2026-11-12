@@ -3,7 +3,7 @@ services:
     name: crm-von-braun-pruebas
     runtime: python
     plan: free
-    buildCommand: python -m py_compile servidor.py render_start.py
+    buildCommand: python -m py_compile servidor.py render_start.py whatsapp.py
     startCommand: python render_start.py
     healthCheckPath: /salud
     envVars:

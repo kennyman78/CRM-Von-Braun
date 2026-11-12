@@ -5,6 +5,7 @@ import os
 from urllib.parse import urlsplit
 
 from servidor import Handler, SCHEMA, ThreadingHTTPServer, connect
+import whatsapp
 
 def config():
     user = os.environ.get('CRM_USUARIO', '')
@@ -18,6 +19,11 @@ def config():
     return origin, (user + ':' + password).encode('utf-8')
 
 class RenderHandler(Handler):
+    def log_message(self, format, *args):
+        if self.path.startswith(whatsapp.PATH):
+            return
+        super().log_message(format, *args)
+
     def authorized(self):
         scheme, _, token = self.headers.get('Authorization', '').partition(' ')
         if scheme.lower() == 'basic':
@@ -34,12 +40,22 @@ class RenderHandler(Handler):
         return False
 
     def do_GET(self):
+        route = urlsplit(self.path)
+        if route.path == whatsapp.PATH:
+            whatsapp.verify(self, route.query)
+            return
         if self.path == '/salud':
             self.send(200, {'ok': True})
         elif self.authorized():
-            super().do_GET()
+            if self.path == '/api/whatsapp':
+                whatsapp.inbox(self)
+            else:
+                super().do_GET()
 
     def do_POST(self):
+        if self.path == whatsapp.PATH:
+            whatsapp.receive(self)
+            return
         if not self.authorized():
             return
         if self.headers.get('Origin') != self.origin or self.headers.get_content_type() != 'application/json':
