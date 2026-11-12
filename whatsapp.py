@@ -58,8 +58,17 @@ def receive(handler):
         return
     body = handler.rfile.read(size)
     expected = 'sha256=' + digest(secret.encode(), body, sha256).hex()
-    if not compare_digest(handler.headers.get('X-Hub-Signature-256', '').encode(), expected.encode()):
-        print('WhatsApp webhook: firma inválida', flush=True)
+    signature = handler.headers.get('X-Hub-Signature-256', '')
+    if not compare_digest(signature.encode(), expected.encode()):
+        if not signature:
+            reason = 'encabezado ausente'
+        elif len(signature) != 71 or not signature.startswith('sha256='):
+            reason = 'formato inesperado'
+        else:
+            reason = 'HMAC no coincide'
+        encoding = handler.headers.get('Content-Encoding', '').lower().strip()
+        encoding = encoding if encoding in ('gzip', 'br', 'deflate', 'identity') else ('otro' if encoding else 'sin codificación')
+        print(f'WhatsApp webhook: firma inválida ({reason}; {encoding}; bytes recibidos {len(body)}/{size})', flush=True)
         handler.send(403, {'error': 'Firma inválida'})
         return
     try:
