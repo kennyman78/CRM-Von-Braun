@@ -49,6 +49,8 @@ class RenderHandler(Handler):
         elif self.authorized():
             if self.path == '/api/whatsapp':
                 whatsapp.inbox(self)
+            elif self.path == whatsapp.CAPTURE_PATH:
+                whatsapp.diagnostic(self)
             else:
                 super().do_GET()
 

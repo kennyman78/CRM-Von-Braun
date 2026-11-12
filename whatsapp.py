@@ -1,12 +1,56 @@
 from hashlib import sha256
 from hmac import compare_digest, digest
+from base64 import b64encode
 import json
 import os
+import re
+from threading import Lock
+from time import monotonic
 from urllib.parse import parse_qs
 
 from servidor import connect
 
 PATH = '/webhook/whatsapp'
+CAPTURE_PATH = '/api/whatsapp/diagnostico'
+_capture_lock = Lock()
+_capture = None
+_captured = False
+
+def capture_rejected(body, signature, phone_id, sender):
+    global _capture, _captured
+    marker = os.environ.get('WA_DIAGNOSTIC_MARKER', '')
+    if not marker or not re.fullmatch(r'sha256=[0-9a-fA-F]{64}', signature):
+        return
+    try:
+        payload = json.loads(body.decode('utf-8'))
+        records = list(messages(payload, phone_id, sender))
+        entries = payload['entry']
+        changes = entries[0]['changes']
+        if len(entries) != 1 or len(changes) != 1:
+            return
+        if len(changes[0]['value']['messages']) != 1 or len(records) != 1 or records[0][3] != marker:
+            return
+    except (ValueError, TypeError, AttributeError, KeyError, IndexError):
+        return
+    with _capture_lock:
+        if not _captured:
+            _captured = True
+            _capture = (monotonic() + 900, body, signature)
+            print('WhatsApp webhook: muestra de diagnóstico disponible durante 15 minutos', flush=True)
+
+def diagnostic(handler):
+    global _capture
+    with _capture_lock:
+        sample, _capture = _capture, None
+    if sample is None or monotonic() >= sample[0]:
+        handler.send(404, {'error': 'No hay una captura disponible'})
+        return
+    _, body, signature = sample
+    handler.send(200, {
+        'X-Hub-Signature-256': signature,
+        'raw_json_utf8': body.decode('utf-8'),
+        'raw_body_base64': b64encode(body).decode('ascii'),
+    })
 
 def settings():
     return tuple(os.environ.get(key, '') for key in (
@@ -69,6 +113,8 @@ def receive(handler):
         encoding = handler.headers.get('Content-Encoding', '').lower().strip()
         encoding = encoding if encoding in ('gzip', 'br', 'deflate', 'identity') else ('otro' if encoding else 'sin codificación')
         print(f'WhatsApp webhook: firma inválida ({reason}; {encoding}; bytes recibidos {len(body)}/{size})', flush=True)
+        if reason == 'HMAC no coincide':
+            capture_rejected(body, signature, phone_id, sender)
         handler.send(403, {'error': 'Firma inválida'})
         return
     try:
