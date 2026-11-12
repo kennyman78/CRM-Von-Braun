@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: crm-von-braun-pruebas
+    runtime: python
+    plan: free
+    buildCommand: python -m py_compile servidor.py render_start.py
+    startCommand: python render_start.py
+    healthCheckPath: /salud
+    envVars:
+      - key: CRM_USUARIO
+        sync: false
+      - key: CRM_CLAVE
+        generateValue: true
